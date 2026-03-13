@@ -12,8 +12,8 @@ about=Creates a DJI waypoint mission from a QGIS point layer. Select which
     Gimbal Tilt, then export a .kmz file ready for upload to DJI FlightHub 2.
     No external template files required – everything is embedded in the plugin.
 
-tracker=https://github.com/your-org/generate-kmz-mission/issues
-repository=https://github.com/your-org/generate-kmz-mission
+tracker=https://github.com/kuncda/generate-kmz-mission/issues
+repository=https://github.com/kuncda/generate-kmz-mission
 
 hasProcessingProvider=yes
 tags=drone,dji,kmz,waypoint,mission,uav,inspection
