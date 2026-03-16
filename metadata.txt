@@ -3,7 +3,7 @@ name=Generate KMZ Mission (DJI FlightHub 2)
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 description=Creates a DJI waypoint mission: reads a QGIS point layer and generates a .kmz file ready for upload to DJI FlightHub 2.
-version=1.0.0
+version=1.0.1
 author=kuncda
 email=kuncl.da@gmail.com
 license=GPL-3.0
@@ -12,6 +12,11 @@ about=Creates a DJI waypoint mission from a QGIS point layer. Select which
     layer attributes map to waypoint index, HAE, ASL, Aircraft Yaw, and
     Gimbal Tilt, then export a .kmz file ready for upload to DJI FlightHub 2.
     No external template files required – everything is embedded in the plugin.
+
+changelog=1.0.1 - Use defusedxml for safe XML parsing; remove unused imports;
+    add CRS warning when input layer is not EPSG:4326; fix dead action_uuid
+    parameter in _fill_placemark.
+    1.0.0 - Initial release.
 
 tracker=https://github.com/kuncda/generate-kmz-mission/issues
 repository=https://github.com/kuncda/generate-kmz-mission
@@ -23,3 +28,5 @@ category=Vector
 icon=icon.png
 experimental=False
 deprecated=False
+
+external_dependencies=defusedxml

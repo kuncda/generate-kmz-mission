@@ -11,18 +11,20 @@
 
 import copy
 import os
-import uuid
 import zipfile
 import tempfile
-import xml.etree.ElementTree as ET
-from typing import Any, Optional
+
+try:
+    import defusedxml.ElementTree as ET
+    from defusedxml.ElementTree import fromstring as _et_fromstring
+except ImportError:  # pragma: no cover – defusedxml not installed
+    import xml.etree.ElementTree as ET  # nosec B405
+    _et_fromstring = ET.fromstring  # nosec B314
 
 from qgis.core import (
     QgsProcessing,
     QgsProcessingAlgorithm,
-    QgsProcessingContext,
     QgsProcessingException,
-    QgsProcessingFeedback,
     QgsProcessingParameterVectorLayer,
     QgsProcessingParameterField,
     QgsProcessingParameterFileDestination,
@@ -39,16 +41,16 @@ class GenerateKmzMission(QgsProcessingAlgorithm):
     All attribute columns are selectable from the layer.
     """
 
-    INPUT_LAYER   = "INPUT_LAYER"
-    FIELD_INDEX   = "FIELD_INDEX"
-    FIELD_HAE     = "FIELD_HAE"
-    FIELD_ASL     = "FIELD_ASL"
-    FIELD_ANGLE   = "FIELD_ANGLE"
-    FIELD_PITCH   = "FIELD_PITCH"
-    OUTPUT_KMZ    = "OUTPUT_KMZ"
+    INPUT_LAYER = "INPUT_LAYER"
+    FIELD_INDEX = "FIELD_INDEX"
+    FIELD_HAE = "FIELD_HAE"
+    FIELD_ASL = "FIELD_ASL"
+    FIELD_ANGLE = "FIELD_ANGLE"
+    FIELD_PITCH = "FIELD_PITCH"
+    OUTPUT_KMZ = "OUTPUT_KMZ"
 
     NS = {
-        "kml":  "http://www.opengis.net/kml/2.2",
+        "kml": "http://www.opengis.net/kml/2.2",
         "wpml": "http://www.dji.com/wpmz/1.0.6",
     }
 
@@ -183,13 +185,13 @@ class GenerateKmzMission(QgsProcessingAlgorithm):
     def _parse_template_string(self, xml_string, label):
         """Parse an XML template from a string; return (tree, folder_el, template_placemark)."""
         try:
-            root = ET.fromstring(xml_string)
+            root = _et_fromstring(xml_string)
         except ET.ParseError as exc:
             raise QgsProcessingException(
                 f"Failed to parse embedded {label} template: {exc}"
             ) from exc
 
-        tree   = ET.ElementTree(root)
+        tree = ET.ElementTree(root)
         folder = root.find(".//kml:Folder", self.NS)
 
         if folder is None:
@@ -215,22 +217,22 @@ class GenerateKmzMission(QgsProcessingAlgorithm):
         if el is not None:
             el.text = value
 
-    def _fill_placemark(self, template_pm, lon, lat, idx, hae, asl, angle, pitch, action_uuid):
+    def _fill_placemark(self, template_pm, lon, lat, idx, hae, asl, angle, pitch):
         """Clone the template placemark and fill in all waypoint-specific values."""
         NS = self.NS
         pm = copy.deepcopy(template_pm)
 
-        self._set_text(pm, ".//kml:coordinates",      f"{lon},{lat}")
-        self._set_text(pm, ".//wpml:ellipsoidHeight",  str(hae))
-        self._set_text(pm, ".//wpml:height",           str(asl))
-        self._set_text(pm, ".//wpml:executeHeight",    str(hae))
-        self._set_text(pm, ".//wpml:index",            str(idx))
+        self._set_text(pm, ".//kml:coordinates", f"{lon},{lat}")
+        self._set_text(pm, ".//wpml:ellipsoidHeight", str(hae))
+        self._set_text(pm, ".//wpml:height", str(asl))
+        self._set_text(pm, ".//wpml:executeHeight", str(hae))
+        self._set_text(pm, ".//wpml:index", str(idx))
 
         ag_el = pm.find(".//wpml:actionGroup", NS)
         if ag_el is not None:
-            self._set_text(ag_el, "wpml:actionGroupId",         str(idx))
+            self._set_text(ag_el, "wpml:actionGroupId", str(idx))
             self._set_text(ag_el, "wpml:actionGroupStartIndex", str(idx))
-            self._set_text(ag_el, "wpml:actionGroupEndIndex",   str(idx))
+            self._set_text(ag_el, "wpml:actionGroupEndIndex", str(idx))
 
         for action in pm.findall(".//wpml:action", NS):
             func_el = action.find("wpml:actionActuatorFunc", NS)
@@ -259,22 +261,31 @@ class GenerateKmzMission(QgsProcessingAlgorithm):
 
     def processAlgorithm(self, parameters, context, feedback):
 
-        ET.register_namespace("",     "http://www.opengis.net/kml/2.2")
+        ET.register_namespace("", "http://www.opengis.net/kml/2.2")
         ET.register_namespace("wpml", "http://www.dji.com/wpmz/1.0.6")
 
         # --- Inputs ---
-        layer    = self.parameterAsVectorLayer(parameters, self.INPUT_LAYER, context)
-        kmz_path = self.parameterAsFileOutput(parameters,  self.OUTPUT_KMZ,  context)
+        layer = self.parameterAsVectorLayer(parameters, self.INPUT_LAYER, context)
+        kmz_path = self.parameterAsFileOutput(parameters, self.OUTPUT_KMZ, context)
 
         if layer is None:
             raise QgsProcessingException(
                 self.invalidSourceError(parameters, self.INPUT_LAYER)
             )
 
+        # --- CRS check ---
+        crs = layer.crs()
+        if not crs.isGeographic() or "4326" not in crs.authid():
+            feedback.pushWarning(
+                f"Layer CRS is '{crs.authid()}', not EPSG:4326. "
+                "Coordinates written to the KMZ will be wrong unless the layer "
+                "is in WGS 84 geographic (EPSG:4326)."
+            )
+
         # --- Resolve selected field names ---
         f_index = self.parameterAsString(parameters, self.FIELD_INDEX, context)
-        f_hae   = self.parameterAsString(parameters, self.FIELD_HAE,   context)
-        f_asl   = self.parameterAsString(parameters, self.FIELD_ASL,   context)
+        f_hae = self.parameterAsString(parameters, self.FIELD_HAE, context)
+        f_asl = self.parameterAsString(parameters, self.FIELD_ASL, context)
         f_angle = self.parameterAsString(parameters, self.FIELD_ANGLE, context)
         f_pitch = self.parameterAsString(parameters, self.FIELD_PITCH, context)
 
@@ -299,7 +310,7 @@ class GenerateKmzMission(QgsProcessingAlgorithm):
         feedback.pushInfo(f"Processing {total} waypoints ...")
 
         # --- Parse embedded templates ---
-        tree_kml,  folder_kml,  tpl_kml  = self._parse_template_string(TEMPLATE_KML,  "KML")
+        tree_kml, folder_kml, tpl_kml = self._parse_template_string(TEMPLATE_KML, "KML")
         tree_wpml, folder_wpml, tpl_wpml = self._parse_template_string(TEMPLATE_WPML, "WPML")
 
         # --- Generate placemarks ---
@@ -312,13 +323,13 @@ class GenerateKmzMission(QgsProcessingAlgorithm):
                 feedback.pushWarning(f"Feature {feat.id()} has no geometry – skipped")
                 continue
 
-            pt       = geom.asPoint()
+            pt = geom.asPoint()
             lon, lat = pt.x(), pt.y()
 
             try:
-                idx   = int(feat[f_index])
-                hae   = float(feat[f_hae])
-                asl   = float(feat[f_asl])
+                idx = int(feat[f_index])
+                hae = float(feat[f_hae])
+                asl = float(feat[f_asl])
                 angle = float(feat[f_angle])
                 pitch = float(feat[f_pitch])
             except (KeyError, TypeError, ValueError) as exc:
@@ -326,23 +337,21 @@ class GenerateKmzMission(QgsProcessingAlgorithm):
                     f"Cannot read attribute values for feature {feat.id()}: {exc}"
                 ) from exc
 
-            action_uuid = str(uuid.uuid4())
-
             folder_kml.append(
-                self._fill_placemark(tpl_kml,  lon, lat, idx, hae, asl, angle, pitch, action_uuid)
+                self._fill_placemark(tpl_kml, lon, lat, idx, hae, asl, angle, pitch)
             )
             folder_wpml.append(
-                self._fill_placemark(tpl_wpml, lon, lat, idx, hae, asl, angle, pitch, action_uuid)
+                self._fill_placemark(tpl_wpml, lon, lat, idx, hae, asl, angle, pitch)
             )
 
             feedback.setProgress(int((i + 1) / total * 100))
 
         # --- Write XML to temp files, then pack into KMZ ---
         with tempfile.TemporaryDirectory() as tmp:
-            tmp_kml  = os.path.join(tmp, "template.kml")
+            tmp_kml = os.path.join(tmp, "template.kml")
             tmp_wpml = os.path.join(tmp, "waylines.wpml")
 
-            tree_kml.write( tmp_kml,  encoding="UTF-8", xml_declaration=True)
+            tree_kml.write(tmp_kml, encoding="UTF-8", xml_declaration=True)
             tree_wpml.write(tmp_wpml, encoding="UTF-8", xml_declaration=True)
 
             out_dir = os.path.dirname(os.path.abspath(kmz_path))
@@ -350,7 +359,7 @@ class GenerateKmzMission(QgsProcessingAlgorithm):
                 os.makedirs(out_dir, exist_ok=True)
 
             with zipfile.ZipFile(kmz_path, "w", zipfile.ZIP_DEFLATED) as kmz:
-                kmz.write(tmp_kml,  arcname="wpmz/template.kml")
+                kmz.write(tmp_kml, arcname="wpmz/template.kml")
                 kmz.write(tmp_wpml, arcname="wpmz/waylines.wpml")
 
         feedback.pushInfo(f"KMZ created successfully: {kmz_path}")
