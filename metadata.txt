@@ -5,7 +5,7 @@ qgisMaximumVersion=4.99
 description=Creates a DJI waypoint mission: reads a QGIS point layer and generates a .kmz file ready for upload to DJI FlightHub 2.
 version=1.0.0
 author=kuncda
-email=info@aerovision.cz
+email=kuncl.da@gmail.com
 
 about=Creates a DJI waypoint mission from a QGIS point layer. Select which
     layer attributes map to waypoint index, HAE, ASL, Aircraft Yaw, and
@@ -17,7 +17,7 @@ repository=https://github.com/kuncda/generate-kmz-mission
 
 hasProcessingProvider=yes
 tags=drone,dji,kmz,waypoint,mission,uav,inspection
-homepage=https://github.com/your-org/generate-kmz-mission
+homepage=https://github.com/kuncda/generate-kmz-mission
 category=Vector
 icon=icon.png
 experimental=False
