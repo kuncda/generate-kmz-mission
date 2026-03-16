@@ -6,6 +6,7 @@ description=Creates a DJI waypoint mission: reads a QGIS point layer and generat
 version=1.0.0
 author=kuncda
 email=kuncl.da@gmail.com
+license=GPL-3.0
 
 about=Creates a DJI waypoint mission from a QGIS point layer. Select which
     layer attributes map to waypoint index, HAE, ASL, Aircraft Yaw, and
