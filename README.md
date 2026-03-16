@@ -1,67 +1,75 @@
 # Generate KMZ Mission – DJI FlightHub 2
 
-QGIS plugin that exposes a **Processing algorithm** for generating `.kmz`
-waypoint mission files ready for upload to **DJI FlightHub 2**.
+QGIS plugin that exposes a **Processing algorithm** for generating `.kmz` waypoint mission files ready for upload to **DJI FlightHub 2**.
 
 ---
 
 ## Installation
 
-### Option A – Install from ZIP (recommended)
+### Option A – QGIS Plugin Repository (recommended)
+1. In QGIS, open **Plugins → Manage and Install Plugins**.
+2. Search for **Generate KMZ Mission**.
+3. Click **Install Plugin**.
+4. The plugin appears in the Processing Toolbox under **DJI Missions**.
 
-1. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP**.
-2. Browse to `generate_kmz_mission.zip` and click **Install Plugin**.
-3. The plugin appears in the Processing Toolbox under **DJI Missions**.
+### Option B – Install from ZIP
+1. Download the latest `generate_kmz_mission.zip` from the [Releases](https://github.com/kuncda/generate-kmz-mission/releases) page.
+2. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP**.
+3. Browse to the downloaded zip and click **Install Plugin**.
 
-### Option B – Manual installation
+### Option C – Manual installation
+1. In QGIS, open **Settings → User Profiles → Open Active Profile Folder**.
+2. Navigate to the `python/plugins/` subfolder inside that folder (create it if it does not exist).
+3. Unzip the archive there so the result is `…/python/plugins/generate_kmz_mission/`.
+4. Restart QGIS and enable the plugin via **Plugins → Manage and Install Plugins**.
 
-1. Unzip the archive into your QGIS plugin profile folder:
-   - Windows: `%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\`
-   - Linux/macOS: `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/`
-2. Restart QGIS and enable the plugin via **Plugins → Manage and Install Plugins**.
+### External dependency – defusedxml
+The plugin requires [`defusedxml`](https://pypi.org/project/defusedxml/) for safe XML parsing.
+QGIS will prompt you to install it automatically on first use. If it does not, install it manually:
+
+```bash
+# Windows – run inside the OSGeo4W Shell
+python -m pip install defusedxml
+
+# Linux / macOS
+pip install defusedxml --break-system-packages
+```
 
 ---
 
 ## Usage
 
-1. Open the **Processing Toolbox** (Ctrl+Alt+T).
-2. Expand **DJI Missions → Generate KMZ Mission (DJI FlightHub 2)**.
+1. Open the **Processing Toolbox** (`Ctrl+Alt+T`).
+2. Expand **DJI Missions → Generate Waypoint Mission KMZ (DJI FlightHub 2)**.
 3. Fill in the parameters:
 
 | Parameter | Description |
 |---|---|
-| Waypoint point layer | A point layer in WGS 84 (EPSG:4326) |
-| KML template file | Path to your `template.kml` base file |
-| WPML template file | Path to your `waylines.wpml` base file |
-| Output KMZ file | Destination path for the generated `.kmz` |
+| Waypoint point layer | A point layer in **WGS 84 (EPSG:4326)**. |
+| Field mapping | Map attributes for Index, HAE, ASL, Yaw, and Pitch. |
+| Output KMZ file | Destination path for the generated `.kmz`. |
+
+> **Note:** The input layer must be in **EPSG:4326** (WGS 84 geographic). If it is not, the plugin will display a warning and the coordinates written to the KMZ will be incorrect. Reproject your layer first using **Vector → Data Management Tools → Reproject Layer**.
 
 ### Required layer fields
 
+Select which layer attributes contain the following values:
+
 | Field | Type | Description |
 |---|---|---|
-| `wp_index` | Integer | Waypoint order index (0-based) |
-| `HAE` | Float | Ellipsoid height (metres) |
-| `ASL` | Float | Height above sea level (metres) |
-| `angle` | Float | Aircraft heading / yaw (degrees, 0–360) |
-| `pitch` | Float | Gimbal pitch angle (degrees, negative = down) |
+| **Waypoint index** | Integer | Sort order of waypoints (0-based). |
+| **HAE** | Numeric | Ellipsoid height (m, WGS84). |
+| **ASL** | Numeric | Height above sea level (m, EGM96). |
+| **Aircraft Yaw** | Numeric | Aircraft heading in degrees. |
+| **Gimbal Tilt** | Numeric | Gimbal pitch angle in degrees. |
+
+Default field names match the standard pipeline output: `wp_index`, `HAE`, `ASL`, `Aircraft Yaw`, `Gimbal Tilt`.
 
 ---
 
 ## Template files
 
-The plugin reads two XML template files that define the mission structure:
-
-- **`template.kml`** – KML placemarks (used by FlightHub 2 for display)
-- **`waylines.wpml`** – WPML placemarks (used by the drone for execution)
-
-Each file must contain a `<Folder>` with at least one `<Placemark>`.
-The first placemark is used as a template; all others are ignored.
-
-Default template paths (editable in the algorithm dialog):
-```
-\\Aerovision2\aerovision group 2\Sloupy\vzor\template.kml
-\\Aerovision2\aerovision group 2\Sloupy\vzor\waylines.wpml
-```
+No external template files are required. The mission structures (KML and WPML) are **embedded within the plugin**. This ensures that the generated KMZ follows the specific DJI FlightHub 2 format automatically.
 
 ---
 
@@ -70,11 +78,12 @@ Default template paths (editable in the algorithm dialog):
 ```
 generate_kmz_mission/
 ├── __init__.py       # QGIS plugin entry point
-├── plugin.py         # Plugin class (registers the Processing provider)
+├── plugin.py         # Registers the Processing provider
 ├── provider.py       # QgsProcessingProvider
-├── algorithm.py      # QgsProcessingAlgorithm (core logic)
+├── algorithm.py      # Core logic and field mapping
+├── templates.py      # Embedded KML/WPML templates
 ├── metadata.txt      # Plugin metadata
-├── icon.png          # Toolbar icon
+├── icon.png          # Toolbox icon
 └── README.md         # This file
 ```
 
@@ -82,8 +91,24 @@ generate_kmz_mission/
 
 ## Changelog
 
+### 1.0.1
+- Replace `xml.etree.ElementTree.fromstring` with `defusedxml` equivalent (fixes Bandit B314)
+- Remove unused imports (`uuid`, `Any`, `Optional`, `QgsProcessingContext`, `QgsProcessingFeedback`)
+- Add CRS warning when input layer is not EPSG:4326
+- Remove dead `action_uuid` parameter from `_fill_placemark`
+- Add `external_dependencies` and `changelog` fields to `metadata.txt`
+
 ### 1.0.0
 - Initial release
-- Template file paths now configurable via algorithm parameters
-- Added field validation before processing
-- Packaged as a proper installable QGIS plugin
+
+---
+
+## Issues and contributions
+
+Bug reports and feature requests are welcome at the [issue tracker](https://github.com/kuncda/generate-kmz-mission/issues).
+
+---
+
+## License
+
+[GPL-3.0](LICENSE)
